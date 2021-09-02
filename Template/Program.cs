@@ -1,15 +1,15 @@
-﻿using System;
+﻿
 using System.IO;
 using System.Threading.Tasks;
+using Application;
 using Discord;
 using Discord.Addons.Hosting;
 using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Template.Services;
+using Persistance;
 
 namespace Template
 {
@@ -51,7 +51,10 @@ namespace Template
                 })
                 .ConfigureServices((context, services) =>
                 {
-                    services.AddHostedService<CommandHandler>();
+                    services
+                    .AddApplicationServices()
+                    .AddPersistanceServices();
+                    
                 })
                 .UseConsoleLifetime();
             
