@@ -1,0 +1,7 @@
+{
+  "prefix": "!",
+  "token": "Bot Token Goes Here",
+  "ConnectionStrings": {
+    "TutorialConnectionString": "Server=DB Connection String Here at some point in the future when I change this."
+  }
+}
