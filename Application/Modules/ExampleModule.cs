@@ -1,17 +1,14 @@
-﻿using System.Data;
-using System.Threading.Tasks;
-using Domain.Contracts.Persistance;
+﻿using Application.Common;
+using Application.Services;
+using Application.Utilities;
+using Discord;
 using Discord.Commands;
-using Domain.Entities;
+using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
 using System;
-using Application.Utilities;
-using Discord.WebSocket;
-using System.IO;
-using Discord;
+using System.Data;
 using System.Linq;
-using Application.Common;
-using Application.Services;
+using System.Threading.Tasks;
 
 namespace Application.Modules
 {
@@ -19,19 +16,26 @@ namespace Application.Modules
     {
         private readonly ILogger<ExampleModule> _logger;
         private readonly Images _images;
-        private readonly RankService _rankService;
+        private readonly BotService _botService;
 
-        public ExampleModule(ILogger<ExampleModule> logger, Images images, RankService rankService)
+        public ExampleModule(ILogger<ExampleModule> logger, Images images, BotService botService)
         {
             _logger = logger;
             _images = images;
-            _rankService = rankService;
+            _botService = botService;
         }
 
         [Command("ping")]
         public async Task PingAsync()
         {
             await ReplyAsync("Pong!");
+        }
+
+        [Command("random")]
+        public async Task Random()
+        {
+            string[] response = { "first response", "second response", "third response" };
+            await ReplyAsync(response[new Random().Next(0, response.Count())]);
         }
 
         [Command("echo")]
@@ -54,7 +58,7 @@ namespace Application.Modules
         public async Task Rank([Remainder] string identifier)
         {
             await Context.Channel.TriggerTypingAsync();
-            var ranks = await _rankService.GetRanksAsync(Context.Guild);
+            var ranks = await _botService.GetRanksAsync(Context.Guild);
 
             IRole role;
 
@@ -81,7 +85,7 @@ namespace Application.Modules
                 role = roleByName;
             }
 
-            if(ranks.Any(x => x.Id != role.Id))
+            if(ranks.All(x => x.Id != role.Id))
             {
                 await ReplyAsync("That rank does not exist!");
                 return;
@@ -165,6 +169,15 @@ namespace Application.Modules
 
             await user.RemoveRoleAsync(role);
             await Context.Channel.SendSuccessAsync($"Unmuted {user.Username}", $"Successfully unmuted the user.");
+        }
+
+        [Command("slowmode")]
+        [RequireUserPermission(GuildPermission.ManageChannels)]
+        [RequireBotPermission(GuildPermission.ManageChannels)]
+        public async Task Slowmode(int interval = 0)
+        {
+            await (Context.Channel as SocketTextChannel).ModifyAsync(x => x.SlowModeInterval = interval);
+            await ReplyAsync($"The slowmode interval was adjusted to {interval} seconds.");
         }
     }
 }

@@ -3,23 +3,19 @@ using Discord;
 using Discord.Commands;
 using Domain.Contracts.Persistance;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Application.Modules
 {
     public class Configuration : ModuleBase<SocketCommandContext>
     {
-        private readonly RankService _rankService;
-        private readonly AutoRoleService _autoRoleService;
+        private readonly BotService _botService;
         private readonly IServerRepository _servers;
 
-        public Configuration(RankService rankService, AutoRoleService autoRoleService, IServerRepository servers)
+        public Configuration(BotService botService, IServerRepository servers)
         {
-            _rankService = rankService;
-            _autoRoleService = autoRoleService;
+            _botService = botService;
             _servers = servers;
         }
 
@@ -41,12 +37,13 @@ namespace Application.Modules
 
             await _servers.ModifyGuildPrefix(Context.Guild.Id, prefix);
             await ReplyAsync($"The prefix has been adjusted to `{prefix}`.");
+            await _botService.SendLogAsync(Context.Guild, "Prefix adjusted", $"{Context.User.Mention} modified the prefix to `{prefix}`");
         }
 
         [Command("ranks", RunMode = RunMode.Async)]
         public async Task Ranks()
         {
-            var ranks = await _rankService.GetRanksAsync(Context.Guild);
+            var ranks = await _botService.GetRanksAsync(Context.Guild);
             if (ranks.Count == 0)
             {
                 await ReplyAsync("This server does not yet have any ranks!");
@@ -70,7 +67,7 @@ namespace Application.Modules
         public async Task AddRank([Remainder] string name)
         {
             await Context.Channel.TriggerTypingAsync();
-            var ranks = await _rankService.GetRanksAsync(Context.Guild);
+            var ranks = await _botService.GetRanksAsync(Context.Guild);
 
             var role = Context.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.CurrentCultureIgnoreCase));
             if (role == null)
@@ -91,7 +88,7 @@ namespace Application.Modules
                 return;
             }
 
-            await _rankService.AddRankAsync(Context.Guild.Id, role.Id);
+            await _botService.AddRankAsync(Context.Guild.Id, role.Id);
             await ReplyAsync($"The role {role.Mention} has been added to the ranks!");
 
         }
@@ -102,7 +99,7 @@ namespace Application.Modules
         public async Task DelRank([Remainder] string name)
         {
             await Context.Channel.TriggerTypingAsync();
-            var ranks = await _rankService.GetRanksAsync(Context.Guild);
+            var ranks = await _botService.GetRanksAsync(Context.Guild);
 
             var role = Context.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.CurrentCultureIgnoreCase));
             if (role == null)
@@ -110,12 +107,12 @@ namespace Application.Modules
                 await ReplyAsync("That role does not exist!");
                 return;
             }
-            if (ranks.Any(x => x.Id != role.Id))
+            if (ranks.All(x => x.Id != role.Id))
             {
                 await ReplyAsync(("That role is not a rank yet!"));
                 return;
             }
-            await _rankService.RemoveRankAsync(Context.Guild.Id, role.Id);
+            await _botService.RemoveRankAsync(Context.Guild.Id, role.Id);
             await ReplyAsync($"The role {role.Mention} has been removed from the ranks!");
         }
 
@@ -123,7 +120,7 @@ namespace Application.Modules
         [RequireUserPermission(GuildPermission.Administrator)]
         public async Task AutoRoles()
         {
-            var autoRoles = await _autoRoleService.GetAutoRolesAsync(Context.Guild);
+            var autoRoles = await _botService.GetAutoRolesAsync(Context.Guild);
             if (autoRoles.Count == 0)
             {
                 await ReplyAsync("This server does not yet have any auto roles!");
@@ -147,7 +144,7 @@ namespace Application.Modules
         public async Task AddAutoRole([Remainder] string name)
         {
             await Context.Channel.TriggerTypingAsync();
-            var autoRoles = await _autoRoleService.GetAutoRolesAsync(Context.Guild);
+            var autoRoles = await _botService.GetAutoRolesAsync(Context.Guild);
 
             var role = Context.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.CurrentCultureIgnoreCase));
             if (role == null)
@@ -168,7 +165,7 @@ namespace Application.Modules
                 return;
             }
 
-            await _autoRoleService.AddAutoRoleAsync(Context.Guild.Id, role.Id);
+            await _botService.AddAutoRoleAsync(Context.Guild.Id, role.Id);
             await ReplyAsync($"The role {role.Mention} has been added to the autoroles!");
 
         }
@@ -179,7 +176,7 @@ namespace Application.Modules
         public async Task DelAutoRole([Remainder] string name)
         {
             await Context.Channel.TriggerTypingAsync();
-            var autoRoles = await _autoRoleService.GetAutoRolesAsync(Context.Guild);
+            var autoRoles = await _botService.GetAutoRolesAsync(Context.Guild);
 
             var role = Context.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.CurrentCultureIgnoreCase));
             if (role == null)
@@ -187,12 +184,12 @@ namespace Application.Modules
                 await ReplyAsync("That role does not exist!");
                 return;
             }
-            if (autoRoles.Any(x => x.Id != role.Id))
+            if (autoRoles.All(x => x.Id != role.Id))
             {
                 await ReplyAsync(("That role is not an autorole yet!"));
                 return;
             }
-            await _autoRoleService.RemoveAutoRoleAsync(Context.Guild.Id, role.Id);
+            await _botService.RemoveAutoRoleAsync(Context.Guild.Id, role.Id);
             await ReplyAsync($"The role {role.Mention} has been removed from the autoroles!");
         }
 
@@ -265,6 +262,62 @@ namespace Application.Modules
             {
                 await _servers.ClearWelcomeAsync(Context.Guild.Id);
                 await ReplyAsync("Successfully cleared the welcome channel.");
+                return;
+            }
+
+            await ReplyAsync("You did not use this command properly.");
+        }
+
+        [Command("logs")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task Logs(string value = null)
+        {
+            if (value is null)
+            {
+                var fetchedChannelId = await _servers.GetLogsAsync(Context.Guild.Id);
+                if (fetchedChannelId == default)
+                {
+                    await ReplyAsync("There has not been set a logs channel yet!");
+                    return;
+                }
+
+                var fetchedChannel = Context.Guild.GetTextChannel(fetchedChannelId);
+                if (fetchedChannel is null)
+                {
+                    await ReplyAsync("There has not been set a logs channel yet!");
+                    await _servers.ClearLogsAsync(Context.Guild.Id);
+                    return;
+                }
+
+                await ReplyAsync($"The channel used for the logs is set to {fetchedChannel.Mention}.");
+
+                return;
+            }
+
+            if (!(value is null) && !value.Equals("Clear", StringComparison.CurrentCultureIgnoreCase))
+            {
+                if (!MentionUtils.TryParseChannel(value, out ulong parsedId))
+                {
+                    await ReplyAsync("Please pass in a valid channel!");
+                    return;
+                }
+
+                var parsedChannel = Context.Guild.GetTextChannel(parsedId);
+                if (parsedChannel is null)
+                {
+                    await ReplyAsync("Please Pass in a valid channel!");
+                    return;
+                }
+
+                await _servers.ModifyLogsAsync(Context.Guild.Id, parsedId);
+                await ReplyAsync($"Successfully modified the logs channel to {parsedChannel.Mention}.");
+                return;
+            }
+
+            if (value.Equals("clear", StringComparison.CurrentCultureIgnoreCase))
+            {
+                await _servers.ClearBackgroundAsync(Context.Guild.Id);
+                await ReplyAsync("Successfully cleared the log channel.");
                 return;
             }
 

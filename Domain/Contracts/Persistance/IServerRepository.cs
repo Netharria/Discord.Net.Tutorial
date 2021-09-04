@@ -14,5 +14,9 @@ namespace Domain.Contracts.Persistance
         Task ModifyBackgroundAsync(ulong id, string url);
         Task ClearBackgroundAsync(ulong id);
         Task<string> GetBackgroundAsync(ulong id);
+
+        Task ModifyLogsAsync(ulong id, ulong channelId);
+        Task ClearLogsAsync(ulong id);
+        Task<ulong> GetLogsAsync(ulong id);
     }
 }

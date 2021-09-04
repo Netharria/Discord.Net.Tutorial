@@ -11,14 +11,11 @@ using System.Threading.Tasks;
 
 namespace Application.Utilities
 {
-    public class RankService
+    public partial class BotService
     {
         private readonly IRankRepository _rankRepository;
 
-        public RankService(IRankRepository rankRepository)
-        {
-            _rankRepository = rankRepository;
-        }
+
 
         public async Task<List<IRole>> GetRanksAsync(IGuild guild)
         {

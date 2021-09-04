@@ -22,11 +22,12 @@ namespace Application.Services
         private readonly CommandService _service;
         private readonly IConfiguration _config;
         private readonly IServerRepository _servers;
-        private readonly AutoRoleService _autoRoleService;
+        private readonly BotService _botService;
+        private string previousMessage;
         private readonly Images _images;
         public static List<Mute> Mutes = new List<Mute>();
 
-        public CommandHandler(IServiceProvider provider, DiscordSocketClient client, CommandService service, IConfiguration config, IServerRepository servers, AutoRoleService autoRoleService, Images images)
+        public CommandHandler(IServiceProvider provider, DiscordSocketClient client, CommandService service, IConfiguration config, IServerRepository servers, BotService botService, Images images)
         {
             _provider = provider;
             _client = client;
@@ -34,18 +35,41 @@ namespace Application.Services
             _config = config;
             _servers = servers;
             _images = images;
-            _autoRoleService = autoRoleService;
+            _botService = botService;
         }
 
         public override async Task InitializeAsync(CancellationToken cancellationToken)
         {
             _client.MessageReceived += OnMessageReceived;
             _client.UserJoined += OnUserJoined;
-
+            _client.ReactionAdded += OnReactionAdded;
+            _client.JoinedGuild += OnJoinedGuild;
+            _client.LeftGuild += LeftGuild;
             var newTask = new Task(async () => await MuteHandler());
             newTask.Start();
             _service.CommandExecuted += OnCommandExecuted;
             await _service.AddModulesAsync(Assembly.GetExecutingAssembly(), _provider);
+        }
+
+        private async Task LeftGuild(SocketGuild arg)
+        {
+            await _client.SetGameAsync($"in {_client.Guilds.Count}", null, ActivityType.Playing);
+        }
+
+        private async Task OnJoinedGuild(SocketGuild arg)
+        {
+            await _client.SetGameAsync($"in {_client.Guilds.Count}", null, ActivityType.Playing);
+        }
+
+        private async Task OnReactionAdded(Cacheable<IUserMessage, ulong> arg1, ISocketMessageChannel arg2, SocketReaction arg3)
+        {
+            if (arg3.MessageId != 883157940276691016) return;
+
+            if (arg3.Emote.Name != "✅") return;
+
+            var channel = await (arg2 as ITextChannel).Guild.GetTextChannelAsync(639594402414854145);
+
+            await channel.SendMessageAsync($"{arg3.User.Value.Mention} replied with the ✅");
         }
 
         private async Task MuteHandler()
@@ -95,7 +119,7 @@ namespace Application.Services
 
         private async Task HandleUserJoined(SocketGuildUser arg)
         {
-            var roles = await _autoRoleService.GetAutoRolesAsync(arg.Guild);
+            var roles = await _botService.GetAutoRolesAsync(arg.Guild);
             if (roles.Count > 0)
                 await arg.AddRolesAsync(roles);
 
@@ -123,6 +147,26 @@ namespace Application.Services
         {
             if (!(arg is SocketUserMessage message)) return;
             if (message.Source != MessageSource.User) return;
+
+            string[] filters = new string[] { "discord.gg", "apple", "macbook" };
+
+            if (message.Content.Split(" ").Intersect(filters).Any())
+            {
+                if (!(message.Channel as SocketGuildChannel).Guild.GetUser(message.Author.Id).GuildPermissions.Administrator)
+                {
+                    await message.DeleteAsync();
+                    await message.Channel.SendMessageAsync($"{message.Author.Mention} You sent a blacklisted word!");
+                    return;
+                }
+            }
+
+            if (message.Content.Equals(previousMessage, StringComparison.CurrentCultureIgnoreCase))
+            {
+                await message.DeleteAsync();
+                await message.Channel.SendMessageAsync($"{message.Author.Mention} Please do not spam that message.");
+                return;
+            }
+            previousMessage = message.Content;
             var argPos = 0;
             var prefix = await _servers.GetGuildPrefix((message.Channel as SocketGuildChannel).Guild.Id) ?? _config["prefix"];
             if (!message.HasStringPrefix(prefix, ref argPos) && !message.HasMentionPrefix(_client.CurrentUser, ref argPos)) return;

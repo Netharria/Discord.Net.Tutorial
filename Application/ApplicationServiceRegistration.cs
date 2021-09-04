@@ -2,6 +2,7 @@
 using Application.Services;
 using System;
 using Application.Utilities;
+using Discord.Addons.Interactive;
 
 namespace Application
 {
@@ -11,9 +12,9 @@ namespace Application
         {
             services
                 .AddHostedService<CommandHandler>()
+                .AddSingleton<InteractiveService>()
                 .AddSingleton<Images>()
-                .AddSingleton<AutoRoleService>()
-                .AddSingleton<RankService>();
+                .AddSingleton<BotService>();
             
             return services;
         }

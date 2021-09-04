@@ -11,14 +11,11 @@ using System.Threading.Tasks;
 
 namespace Application.Utilities
 {
-    public class AutoRoleService
+    public partial class BotService
     {
         private readonly IAutoRoleRepository _autoRoleRepository;
 
-        public AutoRoleService(IAutoRoleRepository autoRoleRepository)
-        {
-            _autoRoleRepository = autoRoleRepository;
-        }
+        
 
         public async Task<List<IRole>> GetAutoRolesAsync(IGuild guild)
         {

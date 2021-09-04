@@ -54,7 +54,6 @@ namespace Template
                     services
                     .AddApplicationServices()
                     .AddPersistanceServices();
-                    
                 })
                 .UseConsoleLifetime();
             
